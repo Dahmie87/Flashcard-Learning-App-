@@ -1,9 +1,8 @@
 /*
- * StudyFlash -- redesigned SDL2 flashcard app
- * Android/CxxDroid fullscreen build
+ * StudyFlash -- SDL2 flashcard app (Desktop build)
  *
  * Build:
- *   g++ studyflash.cpp -o studyflash \
+ *   g++ studyflashapp.cxx -o studyflash \
  *       $(sdl2-config --cflags --libs) -lSDL2_ttf -lm -std=c++17
  */
 
@@ -191,19 +190,19 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // --- FIX 1: true fullscreen, read real dimensions back ---
+    // --- Plain windowed desktop window, fixed size ---
+    const int WIN_W = 900;
+    const int WIN_H = 700;
+
     SDL_Window *win = SDL_CreateWindow("StudyFlash",
-                                       SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                                       0, 0,
-                                       SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_ALLOW_HIGHDPI);
+                                       SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                       WIN_W, WIN_H,
+                                       SDL_WINDOW_SHOWN);
     if (!win)
     {
         std::cerr << SDL_GetError() << "\n";
         return 1;
     }
-
-    int WIN_W = 0, WIN_H = 0;
-    SDL_GetWindowSize(win, &WIN_W, &WIN_H);
 
     SDL_Renderer *rnd = SDL_CreateRenderer(win, -1,
                                            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -214,47 +213,38 @@ int main(int argc, char *argv[])
     }
     SDL_SetRenderDrawBlendMode(rnd, SDL_BLENDMODE_BLEND);
 
-    // --- FIX 2: pre-fill both back buffers to kill the initial flicker ---
+    // Pre-fill both back buffers to kill the initial flicker
     SDL_SetRenderDrawColor(rnd, C_BG.r, C_BG.g, C_BG.b, 255);
     SDL_RenderClear(rnd);
     SDL_RenderPresent(rnd);
     SDL_RenderClear(rnd);
     SDL_RenderPresent(rnd);
 
-    // --- FIX 3: font sizes scale with screen density ---
-    float density = WIN_W / 400.0f;
+    // --- Plain fixed font sizes, no density scaling ---
     auto openFont = [](const char *name, int size) -> TTF_Font *
     {
         const char *dirs[] = {
+            "",
             "/usr/share/fonts/truetype/dejavu/",
             "/usr/share/fonts/truetype/liberation/",
-            "",
             nullptr};
 
         for (int i = 0; dirs[i]; i++)
         {
             std::string path = std::string(dirs[i]) + name;
-
-            std::cout << "Trying: " << path << std::endl;
-
             TTF_Font *f = TTF_OpenFont(path.c_str(), size);
-
             if (f)
-            {
-                std::cout << "SUCCESS: " << path << std::endl;
                 return f;
-            }
         }
-
         return nullptr;
     };
 
-    TTF_Font *fDisplay = openFont("DejaVuSans-Bold.ttf", (int)(34 * density));
-    TTF_Font *fH1 = openFont("DejaVuSans-Bold.ttf", (int)(26 * density));
-    TTF_Font *fH2 = openFont("DejaVuSans-Bold.ttf", (int)(20 * density));
-    TTF_Font *fBody = openFont("DejaVuSans.ttf", (int)(18 * density));
-    TTF_Font *fCaption = openFont("DejaVuSans.ttf", (int)(14 * density));
-    TTF_Font *fLabel = openFont("DejaVuSans-Bold.ttf", (int)(13 * density));
+    TTF_Font *fDisplay = openFont("DejaVuSans-Bold.ttf", 34);
+    TTF_Font *fH1 = openFont("DejaVuSans-Bold.ttf", 26);
+    TTF_Font *fH2 = openFont("DejaVuSans-Bold.ttf", 20);
+    TTF_Font *fBody = openFont("DejaVuSans.ttf", 18);
+    TTF_Font *fCaption = openFont("DejaVuSans.ttf", 14);
+    TTF_Font *fLabel = openFont("DejaVuSans-Bold.ttf", 13);
 
     if (!fDisplay || !fH1 || !fH2 || !fBody || !fCaption || !fLabel)
     {
@@ -277,7 +267,7 @@ int main(int argc, char *argv[])
     int hoverTopic = -1;
     ScrollState scroll;
 
-    // --- FIX 4: all layout constants computed AFTER we know WIN_W/WIN_H ---
+    // --- Layout constants ---
     const int M = (int)(WIN_W * 0.05f);
     const int COLS = 2;
     const int CHIP_GAP = (int)(WIN_W * 0.03f);
@@ -341,18 +331,6 @@ int main(int argc, char *argv[])
             {
                 running = false;
                 break;
-            }
-
-            // Android back button
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_AC_BACK)
-            {
-                if (page == PAGE_CARD)
-                {
-                    page = PAGE_HOME;
-                    pageTarget = 0;
-                }
-                else
-                    running = false;
             }
 
             if (page == PAGE_HOME)
@@ -481,7 +459,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        // --- FIX 5: clear full screen to bg color every frame ---
+        // Clear full screen to bg color every frame
         SDL_SetRenderDrawColor(rnd, C_BG.r, C_BG.g, C_BG.b, 255);
         SDL_RenderClear(rnd);
 
@@ -578,10 +556,10 @@ int main(int argc, char *argv[])
 
             // Back label
             renderText(rnd, fH2, "< Topics", ts.text,
-                       cardPageX + M, TOP_H / 2 - ((int)(20 * density) / 2), WIN_W / 3);
+                       cardPageX + M, TOP_H / 2 - 10, WIN_W / 3);
             // Topic name centred
             renderText(rnd, fH2, topic.name, ts.text,
-                       cardPageX + WIN_W / 2, TOP_H / 2 - ((int)(20 * density) / 2), WIN_W - 2 * M, true);
+                       cardPageX + WIN_W / 2, TOP_H / 2 - 10, WIN_W - 2 * M, true);
 
             // Progress bar
             {
@@ -622,10 +600,10 @@ int main(int argc, char *argv[])
 
             renderText(rnd, fLabel, "QUESTION", C_MUTED, innerX, cardY + M, innerW);
             auto qsz = renderText(rnd, fH1, card.question, C_TEXT,
-                                  innerX, cardY + M + (int)(16 * density) + 8, innerW);
+                                  innerX, cardY + M + 24, innerW);
 
             int sepY = std::min(
-                cardY + M + (int)(16 * density) + 8 + qsz.h + M,
+                cardY + M + 24 + qsz.h + M,
                 cardY + cardH / 2 + (int)(WIN_H * 0.03f));
 
             SDL_SetRenderDrawColor(rnd, C_BORDER.r, C_BORDER.g, C_BORDER.b, 255);
@@ -651,7 +629,7 @@ int main(int argc, char *argv[])
                            innerX + 8, sepY + M, innerW, false, a);
                 renderText(rnd, fBody, card.answer,
                            {C_TEXT.r, C_TEXT.g, C_TEXT.b, a},
-                           innerX + 8, sepY + M + (int)(14 * density) + 6, innerW - 8, false, a);
+                           innerX + 8, sepY + M + 20, innerW - 8, false, a);
             }
 
             // Nav buttons
@@ -684,7 +662,7 @@ int main(int argc, char *argv[])
 
         SDL_RenderPresent(rnd);
 
-        // --- FIX 6: cap frame rate so input stays responsive ---
+        // Cap frame rate so input stays responsive
         Uint32 elapsed = SDL_GetTicks() - now;
         if (elapsed < 16)
             SDL_Delay(16 - elapsed);
